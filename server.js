@@ -3,37 +3,42 @@ const cors = require('cors');
 const Parser = require('rss-parser');
 
 const app = express();
-const parser = new Parser({ timeout: 10000 });
+// Google News requires a browser-like User-Agent
+const parser = new Parser({
+  timeout: 15000,
+  headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)' },
+});
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
 
 // ── Feed sources ────────────────────────────────────────────────────────────
+// Google News RSS aggregates from Le Soir, L'Echo, RTBF, Paperjam, etc.
 const FEEDS = [
   {
-    url: 'https://www.lesoir.be/arc/outboundfeeds/rss/?outputType=xml',
-    source: 'Le Soir',
+    url: 'https://news.google.com/rss/search?q=immobilier+belgique&hl=fr&gl=BE&ceid=BE:fr',
+    source: 'Google News BE',
     region: 'belgique',
   },
   {
-    url: 'https://www.lecho.be/rss/all.xml',
-    source: "L'Echo",
+    url: 'https://news.google.com/rss/search?q=logement+belgique&hl=fr&gl=BE&ceid=BE:fr',
+    source: 'Google News BE',
     region: 'belgique',
   },
   {
-    url: 'https://www.rtbf.be/rss/info/categories/economie.xml',
-    source: 'RTBF',
-    region: 'belgique',
-  },
-  {
-    url: 'https://paperjam.lu/rss',
-    source: 'Paperjam',
+    url: 'https://news.google.com/rss/search?q=immobilier+luxembourg&hl=fr&gl=LU&ceid=LU:fr',
+    source: 'Google News LU',
     region: 'luxembourg',
   },
   {
-    url: 'https://immobilier.lefigaro.fr/rss/actualities.xml',
-    source: 'Le Figaro Immobilier',
+    url: 'https://news.google.com/rss/search?q=immobilier+france&hl=fr&gl=FR&ceid=FR:fr',
+    source: 'Google News FR',
+    region: 'france',
+  },
+  {
+    url: 'https://www.lefigaro.fr/rss/figaro_economie.xml',
+    source: 'Le Figaro',
     region: 'france',
   },
 ];
@@ -124,7 +129,8 @@ async function fetchAllFeeds() {
           const description = (item.contentSnippet || item.content || item.summary || '').replace(/<[^>]+>/g, '').trim();
           const { score, matchCount } = scoreArticle(title, description);
 
-          if (matchCount === 0) continue;
+          // Google News feeds are pre-filtered by query; keep all with score >= 1
+          if (score === 0) continue;
 
           articles.push({
             title,
