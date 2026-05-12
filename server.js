@@ -7,7 +7,44 @@ const app = express();
 const parser = new Parser({
   timeout: 15000,
   headers: { 'User-Agent': 'Mozilla/5.0 (compatible; NewsBot/1.0)' },
+  customFields: {
+    item: [
+      ['media:content', 'mediaContent', { keepArray: false }],
+      ['media:thumbnail', 'mediaThumbnail', { keepArray: false }],
+      ['enclosure', 'enclosure', { keepArray: false }],
+    ],
+  },
 });
+
+// Fallback images per region (royalty-free Unsplash photos)
+const REGION_IMAGES = {
+  belgique:   'https://images.unsplash.com/photo-1559329255-4b5e6a3a7e0e?w=800&q=80',
+  luxembourg: 'https://images.unsplash.com/photo-1587974928442-77dc3e0dba72?w=800&q=80',
+  france:     'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?w=800&q=80',
+};
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1560518883-ce09059eeffa?w=800&q=80';
+
+function extractImage(item) {
+  // Try media:content
+  const mc = item.mediaContent;
+  if (mc) {
+    const url = mc.$ ? mc.$.url : mc.url;
+    if (url) return url;
+  }
+  // Try media:thumbnail
+  const mt = item.mediaThumbnail;
+  if (mt) {
+    const url = mt.$ ? mt.$.url : mt.url;
+    if (url) return url;
+  }
+  // Try enclosure
+  if (item.enclosure && item.enclosure.url) return item.enclosure.url;
+  // Try first <img> in content
+  const content = item.content || item['content:encoded'] || '';
+  const match = content.match(/<img[^>]+src=["']([^"']+)["']/i);
+  if (match) return match[1];
+  return null;
+}
 const PORT = process.env.PORT || 3000;
 
 app.use(cors());
@@ -132,11 +169,13 @@ async function fetchAllFeeds() {
           // Google News feeds are pre-filtered by query; keep all with score >= 1
           if (score === 0) continue;
 
+          const image = extractImage(item) || REGION_IMAGES[feed.region] || FALLBACK_IMAGE;
           articles.push({
             title,
             description: description.slice(0, 400),
             link: item.link || '',
             pubDate: item.pubDate || item.isoDate || '',
+            image,
             _source: feed.source,
             _region: feed.region,
             _score: score,
