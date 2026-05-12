@@ -1,0 +1,113 @@
+<!-- Real Estate News Widget — paste in a WordPress Custom HTML block -->
+<div id="re-news-widget">
+  <div id="re-news-loading" style="text-align:center;padding:20px;color:#666;">Chargement des actualités…</div>
+  <div id="re-news-error"  style="display:none;color:#c00;padding:10px;"></div>
+  <div id="re-news-grid"   style="display:none;"></div>
+</div>
+
+<style>
+#re-news-widget { font-family: inherit; }
+.re-news-filters { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+.re-news-filter-btn {
+  padding:6px 14px; border:1px solid #ccc; border-radius:20px;
+  background:#fff; cursor:pointer; font-size:13px; transition:.2s;
+}
+.re-news-filter-btn.active { background:#1a3c5e; color:#fff; border-color:#1a3c5e; }
+.re-news-grid {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px;
+}
+.re-news-card {
+  border:1px solid #e5e5e5; border-radius:8px; padding:16px;
+  background:#fff; display:flex; flex-direction:column; gap:8px;
+  transition:box-shadow .2s;
+}
+.re-news-card:hover { box-shadow:0 4px 12px rgba(0,0,0,.1); }
+.re-news-badge {
+  display:inline-block; padding:2px 8px; border-radius:12px;
+  font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.5px;
+  width:fit-content;
+}
+.re-news-badge.high   { background:#fde8e8; color:#c0392b; }
+.re-news-badge.medium { background:#fef3e2; color:#d35400; }
+.re-news-badge.low    { background:#e8f5e9; color:#27ae60; }
+.re-news-title { font-size:14px; font-weight:600; line-height:1.4; color:#1a1a1a; }
+.re-news-title a { color:inherit; text-decoration:none; }
+.re-news-title a:hover { text-decoration:underline; }
+.re-news-desc { font-size:13px; color:#555; line-height:1.5; flex:1; }
+.re-news-meta { font-size:11px; color:#999; display:flex; justify-content:space-between; align-items:center; }
+.re-news-region {
+  font-size:11px; padding:1px 6px; border-radius:4px; background:#f0f0f0; color:#666;
+}
+.re-news-empty { text-align:center; color:#999; padding:40px 0; }
+</style>
+
+<script>
+(function(){
+  // ── CONFIG — update this URL to your deployed proxy ──────────────────────
+  var API_URL = 'https://your-proxy.railway.app/api/news';
+  // ─────────────────────────────────────────────────────────────────────────
+
+  var REGION_LABELS = { belgique:'🇧🇪 Belgique', luxembourg:'🇱🇺 Luxembourg', france:'🇫🇷 France' };
+  var currentFilter = 'all';
+  var allArticles   = [];
+
+  function formatDate(str) {
+    if (!str) return '';
+    var d = new Date(str);
+    if (isNaN(d)) return '';
+    return d.toLocaleDateString('fr-BE', { day:'numeric', month:'short', year:'numeric' });
+  }
+
+  function render(articles) {
+    var grid = document.getElementById('re-news-grid');
+    if (!articles.length) {
+      grid.innerHTML = '<p class="re-news-empty">Aucune actualité disponible pour le moment.</p>';
+      return;
+    }
+    var html = '<div class="re-news-filters">'
+      + '<button class="re-news-filter-btn' + (currentFilter==='all'?' active':'') + '" onclick="reNewsFilter(\'all\')">Tous</button>'
+      + Object.keys(REGION_LABELS).map(function(r){
+          return '<button class="re-news-filter-btn' + (currentFilter===r?' active':'') + '" onclick="reNewsFilter(\'' + r + '\')">' + REGION_LABELS[r] + '</button>';
+        }).join('')
+      + '</div><div class="re-news-grid">'
+      + articles.map(function(a){
+          var desc = a.description ? ('<p class="re-news-desc">' + a.description + '</p>') : '';
+          return '<div class="re-news-card">'
+            + '<span class="re-news-badge ' + a._impact + '">' + a._impact + '</span>'
+            + '<div class="re-news-title"><a href="' + a.link + '" target="_blank" rel="noopener">' + a.title + '</a></div>'
+            + desc
+            + '<div class="re-news-meta">'
+            + '<span>' + formatDate(a.pubDate) + '</span>'
+            + '<span class="re-news-region">' + (REGION_LABELS[a._region] || a._region) + '</span>'
+            + '</div></div>';
+        }).join('')
+      + '</div>';
+    grid.innerHTML = html;
+  }
+
+  window.reNewsFilter = function(region) {
+    currentFilter = region;
+    var filtered = region === 'all' ? allArticles : allArticles.filter(function(a){ return a._region === region; });
+    render(filtered);
+  };
+
+  var loading = document.getElementById('re-news-loading');
+  var errorEl = document.getElementById('re-news-error');
+  var grid    = document.getElementById('re-news-grid');
+
+  fetch(API_URL)
+    .then(function(r){ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(function(data){
+      allArticles = data.articles || [];
+      loading.style.display = 'none';
+      grid.style.display    = 'block';
+      render(allArticles);
+    })
+    .catch(function(err){
+      loading.style.display = 'none';
+      errorEl.style.display = 'block';
+      errorEl.textContent   = 'Erreur lors du chargement des actualités. Veuillez réessayer plus tard.';
+      console.error('[re-news]', err);
+    });
+})();
+</script>
